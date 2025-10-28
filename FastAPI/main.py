@@ -1,3 +1,38 @@
+from fastapi import FastAPI, HTTPException
+from SPARQLWrapper import SPARQLWrapper, JSON
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from cart_queries import CartQueries
+from order_service import OrderService
+
+app = FastAPI()
+
+# Initialize cart queries and order service
+cart_queries = CartQueries()
+order_service = OrderService()
+
+# Pydantic models for request bodies
+class AddToCartRequest(BaseModel):
+    product_uri: str
+    client_id: int = 1
+    quantity: int = 1
+
+class RemoveFromCartRequest(BaseModel):
+    product_uri: str
+    client_id: int = 1
+
+class UpdateQuantityRequest(BaseModel):
+    product_uri: str
+    quantity: int
+
+class OrderRequest(BaseModel):
+    full_name: str
+    email: str
+    phone: str
+    delivery_address: str
+
+# Configuration de la connexion à Fuseki
+sparql = SPARQLWrapper("http://localhost:3030/SmartCom/query")
 from fastapi import FastAPI
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from fastapi.middleware.cors import CORSMiddleware
@@ -259,6 +294,143 @@ async def get_sparql_results(question: str):
     except Exception as e:
         return {"error": str(e)}
 
+# Cart endpoints
+@app.get("/cart/{client_id}")
+async def get_cart(client_id: int = 1):
+    """Get all items in the cart for a client"""
+    try:
+        items = cart_queries.get_cart_items(client_id)
+        summary = cart_queries.get_cart_summary(client_id)
+        return {
+            "items": items or [],
+            "summary": summary
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add new endpoints for order management
+@app.get("/orders")
+async def get_all_orders():
+    """Get all orders in the system"""
+    try:
+        orders = order_service.get_all_orders()
+        return orders
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/orders/{client_id}")
+async def get_client_orders(client_id: int):
+    """Get all orders for a specific client"""
+    try:
+        orders = order_service.get_client_orders(client_id)
+        return {"orders": orders}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/orders/{order_id}")
+async def cancel_order(order_id: str):
+    """Cancel a specific order"""
+    try:
+        result = order_service.cancel_order(order_id)
+        if result["success"]:
+            return {"message": result["message"]}
+        else:
+            raise HTTPException(status_code=400, detail=result["message"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/order/{order_id}")
+async def get_order_details(order_id: str):
+    """Get detailed information about a specific order"""
+    try:
+        order = order_service.get_order_details(order_id)
+        if order:
+            return order
+        else:
+            raise HTTPException(status_code=404, detail="Order not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cart/{client_id}/summary")
+async def get_cart_summary(client_id: int = 1):
+    """Get cart summary (total items and amount)"""
+    try:
+        summary = cart_queries.get_cart_summary(client_id)
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/cart/add")
+async def add_to_cart(request: AddToCartRequest):
+    """Add a product to the cart"""
+    try:
+        success = cart_queries.add_to_cart(request.client_id, request.product_uri, request.quantity)
+        if success:
+            return {"success": True, "message": f"Product added to cart with quantity {request.quantity}"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to add product to cart")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/cart/remove")
+async def remove_from_cart(request: RemoveFromCartRequest):
+    """Remove a product from the cart"""
+    try:
+        success = cart_queries.remove_from_cart(request.client_id, request.product_uri)
+        if success:
+            return {"success": True, "message": "Product removed from cart"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to remove product from cart")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/cart/{client_id}/clear")
+async def clear_cart(client_id: int = 1):
+    """Clear all items from the cart"""
+    try:
+        success = cart_queries.clear_cart(client_id)
+        if success:
+            return {"success": True, "message": "Cart cleared"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to clear cart")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/cart/{client_id}/checkout")
+async def checkout_cart(client_id: int, order_details: OrderRequest):
+    """Convert cart to order with customer details"""
+    try:
+        # Check if cart is empty before proceeding
+        cart_summary = cart_queries.get_cart_summary(client_id)
+        if not cart_summary or cart_summary.get("totalItems", 0) == 0:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+        
+        # Convert Pydantic model to dict
+        order_data = order_details.dict()
+        
+        # Create order using the order service
+        result = order_service.create_order_from_cart(client_id, order_data)
+        
+        if result["success"]:
+            # Clear the cart after successful order creation
+            cart_queries.clear_cart(client_id)
+            return result
+        else:
+            raise HTTPException(status_code=400, detail=result["message"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/cart/{client_id}/update-quantity")
+async def update_cart_quantity(client_id: int, request: UpdateQuantityRequest):
+    """Update quantity of an item in the cart"""
+    try:
+        success = cart_queries.update_cart_quantity(client_id, request.product_uri, request.quantity)
+        if success:
+            return {"success": True, "message": f"Quantity updated to {request.quantity}"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to update quantity")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 # Endpoint pour récupérer les avis d'un produit
 @app.get("/avis")
 async def get_avis(product_uri: str):
