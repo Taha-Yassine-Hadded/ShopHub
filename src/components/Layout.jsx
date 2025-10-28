@@ -1,7 +1,35 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet, Link } from "react-router-dom";
+import axios from "axios";
 
 export default function Layout() {
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    fetchCartCount();
+    
+    // Listen for cart updates
+    const handleCartUpdate = () => {
+      fetchCartCount();
+    };
+    
+    window.addEventListener('cartUpdated', handleCartUpdate);
+    
+    return () => {
+      window.removeEventListener('cartUpdated', handleCartUpdate);
+    };
+  }, []);
+
+  const fetchCartCount = async () => {
+    try {
+      const response = await axios.get('http://localhost:9000/cart/1/summary');
+      setCartCount(response.data.total_quantity || 0);
+    } catch (err) {
+      console.error('Error fetching cart count:', err);
+      setCartCount(0);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navigation */}
@@ -30,6 +58,9 @@ export default function Layout() {
               <Link to="/deals" className="text-gray-700 hover:text-blue-600 transition">
                 Deals
               </Link>
+              <Link to="/orders" className="text-gray-700 hover:text-blue-600 transition">
+                Mes Commandes
+              </Link>
             </div>
 
             {/* Right side icons */}
@@ -44,14 +75,16 @@ export default function Layout() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </button>
-              <button className="p-2 text-gray-700 hover:text-blue-600 transition relative">
+              <Link to="/cart" className="p-2 text-gray-700 hover:text-blue-600 transition relative">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  3
-                </span>
-              </button>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
             </div>
           </div>
         </div>

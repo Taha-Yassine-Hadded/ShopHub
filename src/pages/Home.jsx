@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import toast from "react-hot-toast";
 import { ShoppingCart, Search, Package, Info } from "lucide-react";
+import QuantityDialog from "../components/QuantityDialog";
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -8,6 +10,8 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [cart, setCart] = useState([]);
+  const [quantityDialogOpen, setQuantityDialogOpen] = useState(false);
+  const [productToAdd, setProductToAdd] = useState(null);
 
   useEffect(() => {
     fetchProducts();
@@ -39,12 +43,51 @@ export default function Home() {
     }
   };
 
-  const addToCart = (product) => {
-    setCart([...cart, product]);
-    // Animation feedback
-    const btn = event.target.closest('button');
-    btn.classList.add('scale-95');
-    setTimeout(() => btn.classList.remove('scale-95'), 200);
+  const addToCart = async (product, event, quantity = 1) => {
+    try {
+      // Extract product URI from the product object
+      const productUri = product.produit?.value;
+      if (!productUri) {
+        toast.error('Erreur: URI du produit non trouvée');
+        return;
+      }
+
+      const response = await axios.post('http://localhost:9000/cart/add', {
+        product_uri: productUri,
+        client_id: 1, // Static client ID as requested
+        quantity: quantity
+      });
+
+      if (response.data.success) {
+        // Animation feedback
+        if (event) {
+          const btn = event.target.closest('button');
+          btn.classList.add('scale-95');
+          setTimeout(() => btn.classList.remove('scale-95'), 200);
+        }
+        
+        // Show success message
+        toast.success(`${quantity} produit(s) ajouté(s) au panier avec succès!`);
+        
+        // Refresh cart count in layout
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
+      }
+    } catch (err) {
+      console.error('Error adding to cart:', err);
+      toast.error('Erreur lors de l\'ajout au panier');
+    }
+  };
+
+  const handleAddToCartClick = (product, event) => {
+    setProductToAdd(product);
+    setQuantityDialogOpen(true);
+  };
+
+  const handleQuantityConfirm = (quantity) => {
+    if (productToAdd) {
+      addToCart(productToAdd, null, quantity);
+      setProductToAdd(null);
+    }
   };
 
   return (
@@ -162,7 +205,7 @@ export default function Home() {
                         Détails
                       </button>
                       <button
-                        onClick={() => addToCart(product)}
+                        onClick={(e) => handleAddToCartClick(product, e)}
                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                       >
                         <ShoppingCart size={18} />
@@ -256,7 +299,7 @@ export default function Home() {
 
               <button
                 onClick={() => {
-                  addToCart(selectedProduct);
+                  handleAddToCartClick(selectedProduct);
                   setSelectedProduct(null);
                 }}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
@@ -268,6 +311,14 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Quantity Dialog */}
+      <QuantityDialog
+        isOpen={quantityDialogOpen}
+        onClose={() => setQuantityDialogOpen(false)}
+        onConfirm={handleQuantityConfirm}
+        productName={productToAdd?.produit?.value.split("#")[1] || "Produit"}
+      />
     </div>
   );
 }
