@@ -1,0 +1,137 @@
+[
+    {
+        "emoji": "😣",
+        "emotions": {
+            "anger": 1,
+            "anticipation": 0,
+            "disgust": 0,
+            "fear": 0,
+            "joy": 0,
+            "sadness": 0,
+            "surprise": 0,
+            "trust": 0,
+            "positive": 0,
+            "negative": 1
+        }
+    },
+    {
+        "emoji": "😮",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 1,
+            "disgust": 0,
+            "fear": 0,
+            "joy": 0,
+            "sadness": 0,
+            "surprise": 1,
+            "trust": 0,
+            "positive": 1,
+            "negative": 0
+        }
+    },
+    {
+        "emoji": "😣",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 0,
+            "disgust": 1,
+            "fear": 0,
+            "joy": 0,
+            "sadness": 0,
+            "surprise": 0,
+            "trust": 0,
+            "positive": 0,
+            "negative": 1
+        }
+    },
+    {
+        "emoji": "😣",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 0,
+            "disgust": 0,
+            "fear": 1,
+            "joy": 0,
+            "sadness": 0,
+            "surprise": 0,
+            "trust": 0,
+            "positive": 0,
+            "negative": 1
+        }
+    },
+    {
+        "emoji": "😊",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 0,
+            "disgust": 0,
+            "fear": 0,
+            "joy": 1,
+            "sadness": 0,
+            "surprise": 0,
+            "trust": 0,
+            "positive": 1,
+            "negative": 0
+        }
+    },
+    {
+        "emoji": "😔",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 0,
+            "disgust": 0,
+            "fear": 0,
+            "joy": 0,
+            "sadness": 1,
+            "surprise": 0,
+            "trust": 0,
+            "positive": 0,
+            "negative": 1
+        }
+    },
+    {
+        "emoji": "😮",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 0,
+            "disgust": 0,
+            "fear": 0,
+            "joy": 0,
+            "sadness": 0,
+            "surprise": 1,
+            "trust": 0,
+            "positive": 1,
+            "negative": 0
+        }
+    },
+    {
+        "emoji": "😊",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 0,
+            "disgust": 0,
+            "fear": 0,
+            "joy": 0,
+            "sadness": 0,
+            "surprise": 0,
+            "trust": 1,
+            "positive": 1,
+            "negative": 0
+        }
+    },
+    {
+        "emoji": "😐",
+        "emotions": {
+            "anger": 0,
+            "anticipation": 0,
+            "disgust": 0,
+            "fear": 0,
+            "joy": 0,
+            "sadness": 0,
+            "surprise": 0,
+            "trust": 0,
+            "positive": 0,
+            "negative": 0
+        }
+    }
+]

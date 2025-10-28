@@ -6,10 +6,12 @@ import Home from "./pages/Home";
 import Cart from "./pages/Cart";
 import Orders from "./pages/Orders";
 import ProductDetail from "./pages/ProductDetail";
+import Dashboard from "./pages/Dashboard";
 
 
 export default function App() {
   return (
+
     <>
       <Routes>
         <Route element={<Layout />}>
@@ -17,6 +19,8 @@ export default function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/product/:id" element={<ProductDetail />} />
+          <Route path="Dashboard" element={<Dashboard />} />
+
         </Route>
       </Routes>
       <Toaster
