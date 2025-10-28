@@ -8,13 +8,14 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const product = state?.product;
 
-  // États pour la note, le commentaire et les avis
+  // États pour la note, le commentaire, les avis, et l'alerte
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
   const [editComment, setEditComment] = useState(null);
   const [editRating, setEditRating] = useState(0);
   const [editText, setEditText] = useState("");
+  const [alert, setAlert] = useState({ message: "", type: "", show: false }); // Nouvel état pour l'alerte
 
   // Récupérer les avis au chargement
   useEffect(() => {
@@ -50,13 +51,24 @@ const ProductDetail = () => {
         setComments([...comments, { avis: { value: response.data.avis_uri }, note: { value: rating }, commentaire: { value: comment } }]);
         setRating(0);
         setComment("");
-        alert("Avis ajouté avec succès !");
+
+        // Afficher l'alerte en fonction du sentiment
+        const sentiment = response.data.sentiment;
+        if (sentiment === "positive" || sentiment === "neutral") {
+          setAlert({ message: "Merci de votre réactivité", type: "success", show: true });
+        } else if (sentiment === "negative") {
+          setAlert({ message: "Votre commentaire risque d'être supprimé par l'admin", type: "danger", show: true });
+        }
+        // Masquer l'alerte après 4 secondes
+        setTimeout(() => setAlert({ ...alert, show: false }), 7000);
+
+        window.alert("Avis ajouté avec succès !"); // Notification standard
       } catch (error) {
         console.error("Erreur lors de l'ajout de l'avis:", error.response?.data || error.message);
-        alert("Erreur lors de l'ajout de l'avis: " + (error.response?.data?.detail || error.message));
+        window.alert("Erreur lors de l'ajout de l'avis: " + (error.response?.data?.detail || error.message));
       }
     } else {
-      alert("Veuillez entrer une note et un commentaire valides.");
+      window.alert("Veuillez entrer une note et un commentaire valides.");
     }
   };
 
@@ -68,10 +80,10 @@ const ProductDetail = () => {
           params: { avis_uri: avisUri },
         });
         setComments(comments.filter(c => c.avis.value !== avisUri));
-        alert("Avis supprimé avec succès !");
+        window.alert("Avis supprimé avec succès !");
       } catch (error) {
         console.error("Erreur lors de la suppression:", error.response?.data || error.message);
-        alert("Erreur lors de la suppression de l'avis: " + (error.response?.data?.detail || error.message));
+        window.alert("Erreur lors de la suppression de l'avis: " + (error.response?.data?.detail || error.message));
       }
     }
   };
@@ -99,13 +111,13 @@ const ProductDetail = () => {
         setEditComment(null);
         setEditRating(0);
         setEditText("");
-        alert("Avis modifié avec succès !");
+        window.alert("Avis modifié avec succès !");
       } catch (error) {
         console.error("Erreur lors de la modification:", error);
-        alert("Erreur lors de la modification de l'avis.");
+        window.alert("Erreur lors de la modification de l'avis.");
       }
     } else {
-      alert("Veuillez entrer une note et un commentaire valides.");
+      window.alert("Veuillez entrer une note et un commentaire valides.");
     }
   };
 
@@ -146,6 +158,12 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+      {/* Alerte temporaire */}
+      {alert.show && (
+        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-xl text-white shadow-lg transition-opacity duration-300 ${alert.type === "success" ? "bg-green-600" : "bg-red-600"}`}>
+          {alert.message}
+        </div>
+      )}
       <main className="container mx-auto px-4 py-8">
         <button
           onClick={() => navigate("/")}
@@ -306,6 +324,12 @@ const ProductDetail = () => {
       </main>
     </div>
   );
+};
+
+// Fonction addToCart manquante (à implémenter selon ton contexte)
+const addToCart = (product) => {
+  console.log("Produit ajouté au panier:", product);
+  // Logique pour ajouter au panier ici
 };
 
 export default ProductDetail;

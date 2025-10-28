@@ -1,9 +1,26 @@
 from fastapi import FastAPI
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
-import re
 from fastapi.middleware.cors import CORSMiddleware
+from collections import defaultdict
+from collections import Counter
+import re
+import os
+import logging
+import time
 from uuid import uuid4
 from pydantic import BaseModel, Field
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from unidecode import unidecode
+import nltk
+
+# Téléchargement des ressources NLTK
+nltk.download('punkt')
+nltk.download('stopwords')
+
+# Configuration de logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -93,6 +110,140 @@ def natural_to_sparql(question):
 
     return None
 
+# Classe pour l'analyse de sentiment
+class LexiconAnalyzer:
+    def __init__(self, data_path):
+        self.emolex_words = defaultdict(lambda: defaultdict(list))
+        self.nrc_emotions = {}
+        self.tunisian_words = {}
+        self.emoji_emotions = {}
+        self.emotions_list = ['anger', 'anticipation', 'disgust', 'fear', 'joy', 'negative', 'positive', 'sadness', 'surprise', 'trust']
+        self.stop_words = {
+            'french': set(stopwords.words('french')),
+            'english': set(stopwords.words('english'))
+        }
+        self.french_keywords = set(['triste', 'génial', 'joyeux', 'heureux', 'content', 'belle', 'beau', 'joli', "j'adore", 'super', 'tristesse', 'colère', 'peur', 'joie'])
+        self.tunisian_keywords = set(['farhèn', 'nebki', 'mridha', 'khayef', 'zwin', 'yallah', 'fer7an'])
+        self.english_keywords = set(['happy', 'sad', 'angry', 'fear', 'joy', 'love', 'awesome', 'great'])
+        self.data_path = data_path
+        self.load_lexicons()
+        self.load_emoji_emotions()
+
+    def load_emoji_emotions(self):
+        emoji_file = os.path.join(self.data_path, 'emojis.json')
+        try:
+            with open(emoji_file, 'r', encoding='utf-8') as f:
+                emoji_data = json.load(f)
+                for item in emoji_data:
+                    emoji = item['emoji']
+                    emotions = item['emotions']
+                    self.emoji_emotions[emoji] = {emo: score for emo, score in emotions.items() if score > 0}
+            logger.info(f"✅ Emojis chargés: {len(self.emoji_emotions)} emojis")
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement des emojis: {e}")
+
+    def load_lexicons(self):
+        lexicons_path = os.path.join(self.data_path, 'lexicons')
+        onefile_path = os.path.join(self.data_path, 'OneFilePerEmotion')
+        self.load_emolex_tunisian(os.path.join(lexicons_path, 'tunisian_emolex.txt'))
+        self.load_emolex_french(os.path.join(lexicons_path, 'french_emolex.txt'))
+        self.load_nrc_emotions(onefile_path)
+
+    def load_emolex_tunisian(self, filepath):
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    next(f)  # Ignorer l'en-tête
+                    for line in f:
+                        parts = [p.strip() for p in line.split('\t')]
+                        if len(parts) >= 12:
+                            word = parts[-1].lower()
+                            word_no_accent = unidecode(word)
+                            emotion_scores = [int(parts[i]) for i in range(1, 11)]
+                            word_emotions = [emo for i, emo in enumerate(self.emotions_list) if emotion_scores[i] == 1]
+                            if word_emotions:
+                                self.tunisian_words[word] = word_emotions
+                                self.tunisian_words[word_no_accent] = word_emotions
+                logger.info(f"✅ Tunisian: {len(self.tunisian_words)} mots")
+            except Exception as e:
+                logger.error(f"Tunisian error: {e}")
+
+    def load_emolex_french(self, filepath):
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    next(f)  # Ignorer l'en-tête
+                    for line in f:
+                        parts = [p.strip() for p in line.split('\t')]
+                        if len(parts) >= 12:
+                            word = parts[-1].lower()
+                            word_no_accent = unidecode(word)
+                            emotion_scores = [int(parts[i]) for i in range(1, 11)]
+                            for i, emo in enumerate(self.emotions_list):
+                                if emotion_scores[i] == 1:
+                                    self.emolex_words[emo]['french'].append(word)
+                                    self.emolex_words[emo]['french'].append(word_no_accent)
+                logger.info(f"✅ French EMOLEX")
+            except Exception as e:
+                logger.error(f"French error: {e}")
+
+    def load_nrc_emotions(self, path):
+        try:
+            for filename in os.listdir(path):
+                if '-NRC-Emotion-Lexicon.txt' in filename:
+                    emotion = filename.replace('-NRC-Emotion-Lexicon.txt', '').lower()
+                    filepath = os.path.join(path, filename)
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        self.nrc_emotions[emotion] = {line.split('\t')[0].lower() for line in f if len(line.split('\t')) == 2 and line.split('\t')[1].strip() == '1'}
+            logger.info(f"✅ NRC chargé: {len(self.nrc_emotions)} émotions")
+        except Exception as e:
+            logger.error(f"NRC error: {e}")
+
+    def preprocess_text(self, text, lang):
+        text_lower = text.lower()
+        emojis = re.compile(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]').findall(text)
+        text_no_emojis = re.compile(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]').sub('', text_lower)
+        tokens = word_tokenize(text_no_emojis, language='french' if lang in ['french', 'tunisian'] else 'english')
+        tokens = [t for t in tokens if t not in self.stop_words.get(lang, set()) and len(t) >= 2]
+        tokens.extend([unidecode(t) for t in tokens])
+        return list(set(tokens)), emojis
+
+    def detect_language(self, text):
+        tokens, _ = self.preprocess_text(text, 'french')
+        french_count = sum(1 for w in tokens if w in self.french_keywords or unidecode(w) in self.french_keywords)
+        tunisian_count = sum(1 for w in tokens if w in self.tunisian_keywords)
+        english_count = sum(1 for w in tokens if w in self.english_keywords)
+        return 'tunisian' if tunisian_count > 0 else 'french' if french_count > english_count else 'english'
+
+    def analyze_sentiment(self, text):
+        lang = self.detect_language(text)
+        words, emojis = self.preprocess_text(text, lang)
+        emotions = Counter()
+
+        if lang == 'tunisian':
+            for word in words:
+                word_no_accent = unidecode(word)
+                if word in self.tunisian_words or word_no_accent in self.tunisian_words:
+                    emotions.update(self.tunisian_words.get(word, []) or self.tunisian_words.get(word_no_accent, []))
+        else:
+            for word in words:
+                word_no_accent = unidecode(word)
+                for emo in self.emotions_list:
+                    if lang == 'english' and word in self.nrc_emotions.get(emo, set()) or word_no_accent in self.nrc_emotions.get(emo, set()):
+                        emotions[emo] += 1
+                    elif word in self.emolex_words[emo].get(lang, []) or word_no_accent in self.emolex_words[emo].get(lang, []):
+                        emotions[emo] += 1
+
+        for emoji in emojis:
+            if emoji in self.emoji_emotions:
+                emotions.update(self.emoji_emotions[emoji])
+
+        compound = (emotions.get('positive', 0) + emotions.get('joy', 0) - (emotions.get('negative', 0) + emotions.get('anger', 0) + emotions.get('sadness', 0) + emotions.get('fear', 0))) / max(sum(emotions.values()), 1)
+        return 'positive' if compound > 0.2 else 'negative' if compound < -0.2 else 'neutral'
+
+# Initialisation de l'analyseur
+analyzer = LexiconAnalyzer(data_path="C:\\ShopHub\\ShopHub\\FastAPI\\data")
+
 # Endpoint pour récupérer les produits
 @app.get("/sparql")
 async def get_sparql_results(question: str):
@@ -114,12 +265,20 @@ async def get_avis(product_uri: str):
     query = f"""
         PREFIX ns: <http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#>
         PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-        SELECT ?avis ?note ?commentaire
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        SELECT ?avis ?note ?commentaire ?type
         WHERE {{
-            ?avis a ns:Avis .
+            {{
+                ?avis a ns:Avis_positif .
+            }} UNION {{
+                ?avis a ns:Avis_négatif .
+            }} UNION {{
+                ?avis a ns:Avis .
+            }}
             ?avis ns:aAvisProduit <{product_uri}> .
             ?avis ns:aNote ?note .
             ?avis ns:aCommentaire ?commentaire .
+            OPTIONAL {{ ?avis a ?type . }}
         }}
     """
     sparql_query.setQuery(query)
@@ -136,11 +295,18 @@ async def add_avis(avis: AvisInput):
     if not avis.product_uri.startswith("<http://") or not avis.product_uri.endswith(">"):
         avis.product_uri = f"<{avis.product_uri}>"
     avis_uri = f"<http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#Avis_{uuid4()}>"
+    sentiment = analyzer.analyze_sentiment(avis.commentaire)
+    avis_class = {
+        'positive': "<http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#Avis_positif>",
+        'negative': "<http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#Avis_négatif>",
+        'neutral': "<http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#Avis>"
+    }[sentiment]
+
     insert_query = f"""
         PREFIX ns: <http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#>
         PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
         INSERT DATA {{
-            {avis_uri} a ns:Avis .
+            {avis_uri} a {avis_class} .
             {avis_uri} ns:aNote "{avis.note}"^^xsd:decimal .
             {avis_uri} ns:aCommentaire "{avis.commentaire}"^^xsd:string .
             {avis_uri} ns:aAvisProduit {avis.product_uri} .
@@ -151,7 +317,7 @@ async def add_avis(avis: AvisInput):
     sparql_update.method = "POST"
     try:
         sparql_update.query()
-        return {"message": "Avis ajouté avec succès", "avis_uri": avis_uri}
+        return {"message": "Avis ajouté avec succès", "avis_uri": avis_uri, "sentiment": sentiment}
     except Exception as e:
         return {"error": str(e)}
 
@@ -196,6 +362,114 @@ async def update_avis(avis: AvisUpdate):
     try:
         sparql_update.query()
         return {"message": "Avis modifié avec succès"}
+    except Exception as e:
+        return {"error": str(e)}
+
+# Nouveau endpoint pour les statistiques des avis
+@app.get("/dashboard/avis-stats")
+async def get_avis_stats():
+    query = """
+        PREFIX ns: <http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#>
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+        SELECT ?type ?note
+        WHERE {
+            {
+                ?avis a ns:Avis_positif .
+                BIND(ns:Avis_positif AS ?type)
+            } UNION {
+                ?avis a ns:Avis_négatif .
+                BIND(ns:Avis_négatif AS ?type)
+            } UNION {
+                ?avis a ns:Avis .
+                BIND(ns:Avis AS ?type)
+            }
+            ?avis ns:aNote ?note .
+        }
+    """
+    sparql_query.setQuery(query)
+    sparql_query.setReturnFormat(JSON)
+    try:
+        results = sparql_query.query().convert()
+        bindings = results["results"]["bindings"]
+        
+        # Compter les avis par type
+        avis_counts = {"positive": 0, "negative": 0, "neutral": 0}
+        total_notes = 0
+        note_count = 0
+        
+        for binding in bindings:
+            note = float(binding["note"]["value"])
+            if "Avis_positif" in binding["type"]["value"]:
+                avis_counts["positive"] += 1
+            elif "Avis_négatif" in binding["type"]["value"]:
+                avis_counts["negative"] += 1
+            else:
+                avis_counts["neutral"] += 1
+            total_notes += note
+            note_count += 1
+        
+        # Calculer la moyenne des notes
+        average_note = total_notes / note_count if note_count > 0 else 0
+        
+        return {
+            "total_avis": sum(avis_counts.values()),
+            "avis_positive": avis_counts["positive"],
+            "avis_negative": avis_counts["negative"],
+            "avis_neutral": avis_counts["neutral"],
+            "average_note": round(average_note, 2)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Nouveau endpoint pour les produits par catégorie
+@app.get("/dashboard/products-by-category")
+async def get_products_by_category():
+    query = """
+        PREFIX ns: <http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#>
+        SELECT ?categorie (COUNT(?produit) AS ?count)
+        WHERE {
+            ?produit a ns:Produit .
+            ?produit ns:aSousCatégorie ?categorie .
+        }
+        GROUP BY ?categorie
+    """
+    sparql_query.setQuery(query)
+    sparql_query.setReturnFormat(JSON)
+    try:
+        results = sparql_query.query().convert()
+        bindings = results["results"]["bindings"]
+        categories = {}
+        for binding in bindings:
+            cat_name = binding["categorie"]["value"].split("#")[1]
+            count = int(binding["count"]["value"])
+            categories[cat_name] = count
+        return categories
+    except Exception as e:
+        return {"error": str(e)}
+
+# Nouveau endpoint pour les produits par marque
+@app.get("/dashboard/products-by-brand")
+async def get_products_by_brand():
+    query = """
+        PREFIX ns: <http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#>
+        SELECT ?marque (COUNT(?produit) AS ?count)
+        WHERE {
+            ?produit a ns:Produit .
+            ?produit ns:aProduitMarque ?marque .
+        }
+        GROUP BY ?marque
+    """
+    sparql_query.setQuery(query)
+    sparql_query.setReturnFormat(JSON)
+    try:
+        results = sparql_query.query().convert()
+        bindings = results["results"]["bindings"]
+        brands = {}
+        for binding in bindings:
+            brand_name = binding["marque"]["value"].split("#")[1]
+            count = int(binding["count"]["value"])
+            brands[brand_name] = count
+        return brands
     except Exception as e:
         return {"error": str(e)}
 
