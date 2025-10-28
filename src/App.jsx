@@ -5,6 +5,8 @@ import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import Cart from "./pages/Cart";
 import Orders from "./pages/Orders";
+import ProductDetail from "./pages/ProductDetail";
+
 
 export default function App() {
   return (
@@ -14,6 +16,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/product/:id" element={<ProductDetail />} />
         </Route>
       </Routes>
       <Toaster
