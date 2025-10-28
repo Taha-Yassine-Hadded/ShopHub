@@ -21,15 +21,16 @@ export default function Layout() {
               <Link to="/" className="text-gray-700 hover:text-blue-600 transition">
                 Home
               </Link>
-              <Link to="/products" className="text-gray-700 hover:text-blue-600 transition">
-                Products
-              </Link>
+              
               <Link to="/categories" className="text-gray-700 hover:text-blue-600 transition">
                 Categories
               </Link>
               <Link to="/deals" className="text-gray-700 hover:text-blue-600 transition">
                 Deals
               </Link>
+              <Link to="/manage-products" className="text-gray-700 hover:text-blue-600 transition">
+              produits
+              </Link>   
             </div>
 
             {/* Right side icons */}

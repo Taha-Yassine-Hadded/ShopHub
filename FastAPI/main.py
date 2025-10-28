@@ -4,6 +4,8 @@ import re
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
 from pydantic import BaseModel, Field
+from produits import router as produits_router
+
 
 app = FastAPI()
 
@@ -19,6 +21,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(produits_router)
 
 # Modèle Pydantic pour valider les données de l'avis
 class AvisInput(BaseModel):
