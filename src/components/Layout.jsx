@@ -49,14 +49,23 @@ export default function Layout() {
               <Link to="/" className="text-gray-700 hover:text-blue-600 transition">
                 Home
               </Link>
-              <Link to="/products" className="text-gray-700 hover:text-blue-600 transition">
-                Products
-              </Link>
-              <Link to="/Dashboard" className="text-gray-700 hover:text-blue-600 transition">
+              <Link to="/dashboard" className="text-gray-700 hover:text-blue-600 transition">
                 Dashboard
               </Link>
-              <Link to="/deals" className="text-gray-700 hover:text-blue-600 transition">
-                Deals
+              <Link to="/manage-products" className="text-gray-700 hover:text-blue-600 transition">
+                Produits
+              </Link>
+              <Link to="/manage-suppliers" className="text-gray-700 hover:text-green-600 transition">
+                Fournisseurs
+              </Link>
+              <Link to="/manage-stock" className="text-gray-700 hover:text-indigo-600 transition">
+                Stock
+              </Link>
+              <Link to="/manage-clients" className="text-gray-700 hover:text-purple-600 transition">
+                Clients
+              </Link>
+              <Link to="/manage-promotions" className="text-gray-700 hover:text-red-600 transition">
+                Promotions
               </Link>
               <Link to="/orders" className="text-gray-700 hover:text-blue-600 transition">
                 Mes Commandes

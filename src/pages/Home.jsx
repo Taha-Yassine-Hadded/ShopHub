@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { ShoppingCart, Search, Package, Info } from "lucide-react";
+import { ShoppingCart, Search, Package, Info, Tag } from "lucide-react";
 import QuantityDialog from "../components/QuantityDialog";
 import { useNavigate } from "react-router-dom";
 
 export default function Home() {
   const [products, setProducts] = useState([]);
+  const [promotions, setPromotions] = useState([]);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState([]);
@@ -16,6 +17,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchProducts();
+    fetchPromotions();
   }, []);
 
   const fetchProducts = async (filter = "") => {
@@ -32,6 +34,39 @@ export default function Home() {
       setError("Erreur lors de la récupération des produits.");
       setProducts([]);
     }
+  };
+
+  const fetchPromotions = async () => {
+    try {
+      const response = await axios.get("http://localhost:9000/promotions/actives");
+      setPromotions(response.data.promotions_actives || []);
+    } catch (err) {
+      console.error("Erreur lors de la récupération des promotions:", err);
+    }
+  };
+
+  const getProductPromotion = (productUri) => {
+    return promotions.find(promo => promo.produit?.value === productUri);
+  };
+
+  const calculatePromotionalPrice = (originalPrice, promotion) => {
+    if (!promotion) return originalPrice;
+    
+    let finalPrice = originalPrice;
+    
+    // Appliquer la réduction en pourcentage
+    if (promotion.pourcentage?.value) {
+      const percentage = parseFloat(promotion.pourcentage.value);
+      finalPrice = finalPrice * (1 - percentage / 100);
+    }
+    
+    // Appliquer la réduction fixe
+    if (promotion.reduction?.value) {
+      const reduction = parseFloat(promotion.reduction.value);
+      finalPrice = finalPrice - reduction;
+    }
+    
+    return Math.max(0, finalPrice).toFixed(2);
   };
 
   const handleFilter = () => {
@@ -102,7 +137,7 @@ export default function Home() {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-800 mb-4">Découvrez Nos Électroménagers</h2>
-          <p className="text-gray-600 text-lg">Les meilleurs produits pour votre maison au meilleur prix</p>
+          <p className="text-gray-600 text-lg mb-8">Les meilleurs produits pour votre maison au meilleur prix</p>
         </div>
 
         {/* Search Bar */}
@@ -142,65 +177,94 @@ export default function Home() {
               <h3 className="text-2xl font-bold text-gray-800">Produits Disponibles ({products.length})</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map((product, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group"
-                >
-                  {/* Product Image */}
-                  <div className="relative h-64 bg-gray-100 overflow-hidden">
-                    {product.image ? (
-                      <img
-                        src={product.image.value}
-                        alt={product.produit?.value.split("#")[1] || "Produit"}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Package size={64} className="text-gray-300" />
-                      </div>
-                    )}
-                    {product.categorie && (
-                      <span className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                        {product.categorie.value.split("#")[1]}
-                      </span>
-                    )}
-                  </div>
+              {products.map((product, index) => {
+                const promotion = getProductPromotion(product.produit?.value);
+                const originalPrice = parseFloat(product.prix?.value || 0);
+                const promotionalPrice = promotion ? calculatePromotionalPrice(originalPrice, promotion) : null;
+                const discountPercentage = promotion && promotion.pourcentage?.value ? parseFloat(promotion.pourcentage.value) : null;
 
-                  {/* Product Info */}
-                  <div className="p-6">
-                    <h4 className="text-xl font-bold text-gray-800 mb-2 line-clamp-1">
-                      {product.produit?.value.split("#")[1] || "Produit"}
-                    </h4>
-                    {product.marque && (
-                      <p className="text-sm text-gray-500 mb-3">
-                        Marque: <span className="font-semibold text-gray-700">{product.marque.value.split("#")[1]}</span>
-                      </p>
-                    )}
-                    {product.description && (
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description.value}</p>
-                    )}
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-3xl font-bold text-blue-600">{product.prix?.value || "N/A"} €</span>
+                return (
+                  <div
+                    key={index}
+                    className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group"
+                  >
+                    {/* Product Image */}
+                    <div className="relative h-64 bg-gray-100 overflow-hidden">
+                      {product.image ? (
+                        <img
+                          src={product.image.value}
+                          alt={product.produit?.value.split("#")[1] || "Produit"}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Package size={64} className="text-gray-300" />
+                        </div>
+                      )}
+                      {product.categorie && (
+                        <span className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                          {product.categorie.value.split("#")[1]}
+                        </span>
+                      )}
+                      {promotion && (
+                        <span className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 animate-pulse">
+                          <Tag size={16} /> PROMO
+                        </span>
+                      )}
                     </div>
-                    {/* Action Buttons */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleProductDetail(product)}
-                        className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
-                      >
-                        <Info size={18} /> Détails
-                      </button>
-                      <button
-                        onClick={(e) => handleAddToCartClick(product, e)}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                      >
-                        <ShoppingCart size={18} /> Ajouter
-                      </button>
+
+                    {/* Product Info */}
+                    <div className="p-6">
+                      <h4 className="text-xl font-bold text-gray-800 mb-2 line-clamp-1">
+                        {product.produit?.value.split("#")[1] || "Produit"}
+                      </h4>
+                      {product.marque && (
+                        <p className="text-sm text-gray-500 mb-3">
+                          Marque: <span className="font-semibold text-gray-700">{product.marque.value.split("#")[1]}</span>
+                        </p>
+                      )}
+                      {product.description && (
+                        <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description.value}</p>
+                      )}
+                      
+                      {/* Prix */}
+                      <div className="flex items-center gap-3 mb-4">
+                        {promotion ? (
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="text-3xl font-bold text-red-600">{promotionalPrice} €</span>
+                              {discountPercentage && (
+                                <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">
+                                  -{discountPercentage}%
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-lg text-gray-400 line-through">{originalPrice.toFixed(2)} €</span>
+                          </div>
+                        ) : (
+                          <span className="text-3xl font-bold text-blue-600">{originalPrice.toFixed(2)} €</span>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleProductDetail(product)}
+                          className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <Info size={18} /> Détails
+                        </button>
+                        <button
+                          onClick={(e) => handleAddToCartClick(product, e)}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                        >
+                          <ShoppingCart size={18} /> Ajouter
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

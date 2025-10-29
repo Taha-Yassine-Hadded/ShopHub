@@ -6,12 +6,15 @@ import Home from "./pages/Home";
 import Cart from "./pages/Cart";
 import Orders from "./pages/Orders";
 import ProductDetail from "./pages/ProductDetail";
+import ProductManagement from "./pages/ProductManagement";
+import SupplierManagement from "./pages/SupplierManagement";
+import StockManagement from "./pages/StockManagement";
+import ClientManagement from "./pages/ClientManagement";
+import PromotionManagement from "./pages/PromotionManagement";
 import Dashboard from "./pages/Dashboard";
-
 
 export default function App() {
   return (
-
     <>
       <Routes>
         <Route element={<Layout />}>
@@ -19,8 +22,12 @@ export default function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/product/:id" element={<ProductDetail />} />
-          <Route path="Dashboard" element={<Dashboard />} />
-
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/manage-products" element={<ProductManagement />} />
+          <Route path="/manage-suppliers" element={<SupplierManagement />} />
+          <Route path="/manage-stock" element={<StockManagement />} />
+          <Route path="/manage-clients" element={<ClientManagement />} />
+          <Route path="/manage-promotions" element={<PromotionManagement />} />
         </Route>
       </Routes>
       <Toaster

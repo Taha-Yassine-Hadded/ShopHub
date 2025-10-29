@@ -2,6 +2,15 @@ from fastapi import FastAPI, HTTPException
 from SPARQLWrapper import SPARQLWrapper, JSON
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from produits import router as produits_router
+from fournisseurs import router as fournisseurs_router
+from stock import router as stock_router
+from clients import router as clients_router
+from promotions import router as promotions_router
+from nlp_search import analyser_question_nlp
+from nlp_search_fournisseurs import analyser_question_fournisseur
+from nlp_search_stock import analyser_question_stock
+from nlp_search_clients import analyser_question_client
 from cart_queries import CartQueries
 from order_service import OrderService
 import spacy
@@ -17,7 +26,6 @@ from nltk.corpus import stopwords
 from unidecode import unidecode
 import nltk
 import json
-
 # Téléchargement des ressources NLTK
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -43,6 +51,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(produits_router)
+app.include_router(fournisseurs_router)
+app.include_router(stock_router)
+app.include_router(clients_router)
+app.include_router(promotions_router)
 
 # Modèles Pydantic
 class NaturalQuery(BaseModel):
@@ -616,6 +629,40 @@ async def update_avis(avis: AvisUpdate):
     except Exception as e:
         return {"error": str(e)}
 
+# Endpoint pour la recherche NLP (Langage Naturel)
+@app.post("/search-products-nlp")
+async def search_products_nlp(question: str):
+    """
+    Recherche de produits en utilisant le traitement du langage naturel (NLP).
+    L'utilisateur peut poser une question en français et le système la convertit en SPARQL.
+    
+    Exemples de questions :
+    - "Quels sont les produits de la catégorie lave-vaisselle ?"
+    - "Montre-moi les réfrigérateurs Samsung"
+    - "Je cherche des lave-linge avec un prix inférieur à 600 euros"
+    """
+    try:
+        # Analyser la question avec SpaCy
+        analyse = analyser_question_nlp(question)
+        
+        if "error" in analyse:
+            return {"error": analyse["error"]}
+        
+        # Exécuter la requête SPARQL générée
+        sparql_query.setQuery(analyse["sparql_query"])
+        sparql_query.setReturnFormat(JSON)
+        
+        results = sparql_query.query().convert()
+        
+        return {
+            "question": question,
+            "entites_detectees": analyse["entites"],
+            "sparql_genere": analyse["sparql_query"],
+            "results": results["results"]["bindings"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Nouveau endpoint pour les statistiques des avis
 @app.get("/dashboard/avis-stats")
 async def get_avis_stats():
@@ -672,6 +719,110 @@ async def get_avis_stats():
     except Exception as e:
         return {"error": str(e)}
 
+# Endpoint pour la recherche NLP des Fournisseurs
+@app.post("/search-suppliers-nlp")
+async def search_suppliers_nlp(question: str):
+    """
+    Recherche de fournisseurs en utilisant le traitement du langage naturel (NLP).
+    L'utilisateur peut poser une question en français et le système la convertit en SPARQL.
+    
+    Exemples de questions :
+    - "Quels sont les fournisseurs en Tunisie ?"
+    - "Montre-moi les fournisseurs Samsung"
+    - "Fournisseur Samsung en Tunisie"
+    """
+    try:
+        # Analyser la question avec SpaCy
+        analyse = analyser_question_fournisseur(question)
+        
+        if "error" in analyse:
+            return {"error": analyse["error"]}
+        
+        # Exécuter la requête SPARQL générée
+        sparql_query.setQuery(analyse["sparql_query"])
+        sparql_query.setReturnFormat(JSON)
+        
+        results = sparql_query.query().convert()
+        
+        return {
+            "question": question,
+            "entites_detectees": analyse["entites"],
+            "sparql_genere": analyse["sparql_query"],
+            "results": results["results"]["bindings"]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Endpoint pour la recherche NLP du Stock
+@app.post("/search-stock-nlp")
+async def search_stock_nlp(question: str):
+    """
+    Recherche de stock en utilisant le traitement du langage naturel (NLP).
+    L'utilisateur peut poser une question en français et le système la convertit en SPARQL.
+    
+    Exemples de questions :
+    - "Quels sont les produits en rupture de stock ?"
+    - "Montre-moi le stock des lave-linge Samsung"
+    - "Produits avec stock faible"
+    - "Tous les produits avec un stock supérieur à 50 unités"
+    """
+    try:
+        # Analyser la question avec SpaCy
+        analyse = analyser_question_stock(question)
+        
+        if "error" in analyse:
+            return {"error": analyse["error"]}
+        
+        # Exécuter la requête SPARQL générée
+        sparql_query.setQuery(analyse["sparql_query"])
+        sparql_query.setReturnFormat(JSON)
+        
+        results = sparql_query.query().convert()
+        
+        return {
+            "question": question,
+            "entites_detectees": analyse["entites"],
+            "sparql_genere": analyse["sparql_query"],
+            "results": results["results"]["bindings"]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Endpoint pour la recherche NLP des Clients
+@app.post("/search-clients-nlp")
+async def search_clients_nlp(question: str):
+    """
+    Recherche de clients en utilisant le traitement du langage naturel (NLP).
+    L'utilisateur peut poser une question en français et le système la convertit en SPARQL.
+    
+    Exemples de questions :
+    - "Quels sont les clients en Tunisie ?"
+    - "Montre-moi les clients de Paris"
+    - "Client Jean Dupont"
+    - "Liste des clients français"
+    """
+    try:
+        # Analyser la question avec SpaCy
+        analyse = analyser_question_client(question)
+        
+        if "error" in analyse:
+            return {"error": analyse["error"]}
+        
+        # Exécuter la requête SPARQL générée
+        sparql_query.setQuery(analyse["sparql_query"])
+        sparql_query.setReturnFormat(JSON)
+        
+        results = sparql_query.query().convert()
+        
+        return {
+            "question": question,
+            "entites_detectees": analyse["entites"],
+            "sparql_genere": analyse["sparql_query"],
+            "results": results["results"]["bindings"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Nouveau endpoint pour les produits par catégorie
 @app.get("/dashboard/products-by-category")
 async def get_products_by_category():
@@ -721,6 +872,7 @@ async def get_products_by_brand():
             count = int(binding["count"]["value"])
             brands[brand_name] = count
         return brands
+
     except Exception as e:
         return {"error": str(e)}
 
