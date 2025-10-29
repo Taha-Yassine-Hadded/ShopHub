@@ -1,0 +1,7 @@
+Input Question	Expected Behavior
+"Liste des produits"	Shows all products (default)
+"Quels sont les produits ?"	Shows all products
+"Afficher les marques"	Lists all brands
+"Donne-moi les catégories"	Lists all categories
+"Quel est le prix du produit iPhone 15 ?"	Returns price for matching product
+"Qui est l'auteur du livre Le Petit Prince ?"	Returns author
