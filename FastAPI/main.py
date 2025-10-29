@@ -659,6 +659,9 @@ async def search_products_nlp(question: str):
             "entites_detectees": analyse["entites"],
             "sparql_genere": analyse["sparql_query"],
             "results": results["results"]["bindings"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Nouveau endpoint pour les statistiques des avis
 @app.get("/dashboard/avis-stats")
@@ -817,6 +820,9 @@ async def search_clients_nlp(question: str):
             "sparql_genere": analyse["sparql_query"],
             "results": results["results"]["bindings"]
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Nouveau endpoint pour les produits par catégorie
 @app.get("/dashboard/products-by-category")
 async def get_products_by_category():
