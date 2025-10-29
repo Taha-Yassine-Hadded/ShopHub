@@ -1,17 +1,54 @@
 from fastapi import FastAPI, HTTPException
 from SPARQLWrapper import SPARQLWrapper, JSON
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from cart_queries import CartQueries
 from order_service import OrderService
+import spacy
+from spacy.lang.fr import French
+from collections import defaultdict, Counter
+import re
+import os
+import logging
+import time
+from uuid import uuid4
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from unidecode import unidecode
+import nltk
+import json
 
-app = FastAPI()
+# Téléchargement des ressources NLTK
+nltk.download('punkt')
+nltk.download('stopwords')
 
-# Initialize cart queries and order service
-cart_queries = CartQueries()
-order_service = OrderService()
+# Configuration de logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Pydantic models for request bodies
+# Charger le modèle SpaCy pour le français (à installer avec `python -m spacy download fr_core_news_sm`)
+nlp = French()
+
+app = FastAPI()  # Une seule instance de FastAPI
+
+# Configurations de connexion à Fuseki
+sparql_query = SPARQLWrapper("http://localhost:3030/SmartCom/query")  # Pour les requêtes SELECT
+sparql_update = SPARQLWrapper("http://localhost:3030/SmartCom/update")  # Pour les requêtes UPDATE
+
+# Activer CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Modèles Pydantic
+class NaturalQuery(BaseModel):
+    question: str
+    product_uri: str
+
 class AddToCartRequest(BaseModel):
     product_uri: str
     client_id: int = 1
@@ -31,58 +68,19 @@ class OrderRequest(BaseModel):
     phone: str
     delivery_address: str
 
-# Configuration de la connexion à Fuseki
-sparql = SPARQLWrapper("http://localhost:3030/SmartCom/query")
-from fastapi import FastAPI
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
-from fastapi.middleware.cors import CORSMiddleware
-from collections import defaultdict
-from collections import Counter
-import re
-import os
-import logging
-import time
-from uuid import uuid4
-from pydantic import BaseModel, Field
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from unidecode import unidecode
-import nltk
-
-# Téléchargement des ressources NLTK
-nltk.download('punkt')
-nltk.download('stopwords')
-
-# Configuration de logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-app = FastAPI()
-
-# Configurations de connexion à Fuseki
-sparql_query = SPARQLWrapper("http://localhost:3030/SmartCom/query")  # Pour les requêtes SELECT
-sparql_update = SPARQLWrapper("http://localhost:3030/SmartCom/update")  # Pour les requêtes UPDATE
-
-# Activer CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Modèle Pydantic pour valider les données de l'avis
 class AvisInput(BaseModel):
     product_uri: str
     note: float = Field(ge=0, le=5)
     commentaire: str
 
-# Modèle pour récupérer un avis existant
 class AvisUpdate(BaseModel):
     avis_uri: str
     note: float = Field(ge=0, le=5)
     commentaire: str
+
+# Initialize cart queries and order service
+cart_queries = CartQueries()
+order_service = OrderService()
 
 # Dictionnaire pour mapper les noms textuels aux URIs
 entity_mappings = {
@@ -294,6 +292,86 @@ async def get_sparql_results(question: str):
     except Exception as e:
         return {"error": str(e)}
 
+# Endpoint pour filtrer les avis via une question naturelle
+# Endpoint pour filtrer les avis via une question naturelle
+# Endpoint pour filtrer les avis via une question naturelle
+# Endpoint pour filtrer les avis via une question naturelle
+# Endpoint pour filtrer les avis via une question naturelle
+# Endpoint pour filtrer les avis via une question naturelle
+@app.post("/filter-avis")
+async def filter_avis(query: NaturalQuery):
+    product_uri = query.product_uri
+    question = query.question.lower().strip()
+
+    # Analyse avec SpaCy
+    doc = nlp(question)
+    entities = [ent.text for ent in doc.ents]
+    tokens = [token.text for token in doc if not token.is_stop]
+
+    # Détection de l'intention (logique améliorée)
+    if any(phrase in question for phrase in ["tous les avis", "all avis", "all reviews"]):
+        filter_type = "all"
+    elif any(word in tokens for word in ["positif", "positive"]):
+        filter_type = "positive"
+    elif any(word in tokens for word in ["négatif", "negative"]):
+        filter_type = "negative"
+    else:
+        return {"avis": []}  # Liste vide par défaut si aucun filtre valide
+
+    # Construction de la requête SPARQL en fonction du filtre
+    if filter_type == "all":
+        sparql_query_text = f"""
+            PREFIX ns: <http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            SELECT ?avis ?note ?commentaire ?type
+            WHERE {{
+                {{
+                    ?avis a ns:Avis_positif .
+                    BIND(ns:Avis_positif AS ?type)
+                }} UNION {{
+                    ?avis a ns:Avis_négatif .
+                    BIND(ns:Avis_négatif AS ?type)
+                }} UNION {{
+                    ?avis a ns:Avis .
+                    BIND(ns:Avis AS ?type)
+                }}
+                ?avis ns:aAvisProduit <{product_uri}> .
+                ?avis ns:aNote ?note .
+                ?avis ns:aCommentaire ?commentaire .
+            }}
+        """
+        print("Requête SPARQL pour 'tous les avis':", sparql_query_text)  # Débogage
+    else:
+        avis_type = {
+            "positive": "ns:Avis_positif",
+            "negative": "ns:Avis_négatif"
+        }[filter_type]
+        sparql_query_text = f"""
+            PREFIX ns: <http://www.semanticweb.org/asus/ontologies/2025/9/untitled-ontology-10#>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            SELECT ?avis ?note ?commentaire ?type
+            WHERE {{
+                ?avis a {avis_type} .
+                ?avis ns:aAvisProduit <{product_uri}> .
+                ?avis ns:aNote ?note .
+                ?avis ns:aCommentaire ?commentaire .
+            }}
+        """
+        print("Requête SPARQL pour", filter_type, ":", sparql_query_text)  # Débogage
+
+    sparql_query.setQuery(sparql_query_text)
+    sparql_query.setReturnFormat(JSON)
+    try:
+        results = sparql_query.query().convert()
+        print("Résultats bruts:", results)  # Débogage
+        avis_list = results.get("results", {}).get("bindings", [])
+        return {"avis": avis_list}  # Retourne explicitement la liste des bindings
+    except Exception as e:
+        print("Erreur:", str(e))  # Débogage
+        return {"error": str(e)}
+
+
+
 # Cart endpoints
 @app.get("/cart/{client_id}")
 async def get_cart(client_id: int = 1):
@@ -431,6 +509,7 @@ async def update_cart_quantity(client_id: int, request: UpdateQuantityRequest):
             raise HTTPException(status_code=400, detail="Failed to update quantity")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 # Endpoint pour récupérer les avis d'un produit
 @app.get("/avis")
 async def get_avis(product_uri: str):

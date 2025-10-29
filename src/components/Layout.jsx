@@ -52,8 +52,8 @@ export default function Layout() {
               <Link to="/products" className="text-gray-700 hover:text-blue-600 transition">
                 Products
               </Link>
-              <Link to="/categories" className="text-gray-700 hover:text-blue-600 transition">
-                Categories
+              <Link to="/Dashboard" className="text-gray-700 hover:text-blue-600 transition">
+                Dashboard
               </Link>
               <Link to="/deals" className="text-gray-700 hover:text-blue-600 transition">
                 Deals
